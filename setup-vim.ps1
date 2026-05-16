@@ -80,8 +80,12 @@ function Invoke-GitBash {
         Write-Err "找不到 Git Bash，请先安装 Git for Windows"
         exit 1
     }
-    # 使用 --login 确保 ~/.bashrc 等被加载，PATH 正确
+    # --login 会加载 /etc/profile 等，其中可能有 ls /home 等输出到 stderr
+    # PowerShell 会将外部命令的 stderr 视为 NativeCommandError
+    # 用 SilentlyContinue 临时抑制，避免 $ErrorActionPreference='Stop' 中断脚本
+    $prevEA = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
     $result = & $bash --login -c $Command 2>&1
+    $ErrorActionPreference = $prevEA
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) {
         # exit code 1 在某些 bash 操作中是正常的（如 grep 没匹配）
     }
