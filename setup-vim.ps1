@@ -182,8 +182,17 @@ function Install-VimrcBase {
         return
     }
 
-    Write-Info "克隆 amix/vimrc (awesome 版)..."
-    Invoke-GitBash "git clone --depth 1 $VimRuntimeUrl ~/.vim_runtime 2>&1" | Out-Null
+    $proxyUrl = "$GitHubProxy/$VimRuntimeUrl"
+    Write-Info "克隆 amix/vimrc (镜像: $proxyUrl)..."
+    $cloneResult = Invoke-GitBash "git clone --depth 1 $proxyUrl ~/.vim_runtime 2>&1"
+    if ($cloneResult -match 'fatal|error') {
+        Write-Warn "镜像克隆失败，尝试直连..."
+        $cloneResult = Invoke-GitBash "git clone --depth 1 $VimRuntimeUrl ~/.vim_runtime 2>&1"
+        if ($cloneResult -match 'fatal|error') {
+            Write-Err "克隆失败: $cloneResult"
+            exit 1
+        }
+    }
 
     if (-not (Test-Path $vimRuntime)) {
         Write-Err "克隆失败"
@@ -253,7 +262,12 @@ function Install-CustomPlugins {
             Write-Info "$($p.name) 已存在，跳过"
         } else {
             Write-Info "安装 $($p.name)..."
-            Invoke-GitBash "git clone --depth 1 $($p.url) ~/.vim_runtime/my_plugins/$($p.name)" | Out-Null
+            $pProxyUrl = "$GitHubProxy/$($p.url)"
+            $cloneOk = Invoke-GitBash "git clone --depth 1 $pProxyUrl ~/.vim_runtime/my_plugins/$($p.name) 2>&1"
+            if ($cloneOk -match 'fatal|error') {
+                Write-Warn "镜像失败，直连..."
+                Invoke-GitBash "git clone --depth 1 $($p.url) ~/.vim_runtime/my_plugins/$($p.name) 2>&1" | Out-Null
+            }
             if (Test-Path $target) {
                 Write-Ok "$($p.name) ✓"
             } else {
