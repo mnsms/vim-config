@@ -16,8 +16,8 @@ set -euo pipefail
 # GitHub 下载加速，可自行替换为可用的镜像
 # 备选: https://ghfast.top  https://gh-proxy.com  https://mirror.ghproxy.com
 GITHUB_PROXY="${GITHUB_PROXY:-https://gh-proxy.com}"
-# Git clone 加速 (留空则直连)
-GIT_PROXY="${GIT_PROXY:-}"
+# Git clone 加速 (默认与 GITHUB_PROXY 同步，留空则直连)
+GIT_PROXY="${GIT_PROXY:-${GITHUB_PROXY}}"
 
 # ── 版本 ──────────────────────────────────────────────────
 FZF_VERSION="0.72.0"
