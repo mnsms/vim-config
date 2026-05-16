@@ -235,7 +235,8 @@ catch
 endtry
 "@
     $vimrcPath = Join-Path $env:USERPROFILE ".vimrc"
-    $vimrcContent | Out-File -FilePath $vimrcPath -Encoding utf8NoBOM -Force
+    # utf8NoBOM 仅 PowerShell 7+ 支持，用 .NET API 兼容 PS 5.1
+    [System.IO.File]::WriteAllText($vimrcPath, $vimrcContent, [System.Text.UTF8Encoding]::new($false))
     Write-Ok ".vimrc 已生成: $vimrcPath"
 
     Write-Ok "amix/vimrc 基础框架安装完成"
