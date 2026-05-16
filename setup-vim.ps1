@@ -210,9 +210,9 @@ function Install-VimrcBase {
     }
 
     Write-Info "执行安装脚本 (生成 .vimrc)..."
-    # 用 Git Bash 执行 bash 脚本
+    # 用 Git Bash 执行 bash 脚本 (--all 参数会写入 ~/.vimrc 并克隆全部基础插件)
     $bashHome = Get-GitBashHome $vimRuntime
-    Invoke-GitBash "cd '$bashHome' && bash install_awesome_parameterized.sh '$bashHome'" | ForEach-Object {
+    Invoke-GitBash "cd '$bashHome' && bash install_awesome_parameterized.sh '$bashHome' --all" | ForEach-Object {
         Write-Host $_
     }
 
@@ -404,8 +404,13 @@ function Test-Installation {
         $errors++
     }
 
-    # ripgrep
-    $rgExe = Get-Command rg -ErrorAction SilentlyContinue
+    # ripgrep - Get-Command 缓存可能过期，直接搜索 PATH
+    $rgExe = (Get-Command rg -ErrorAction SilentlyContinue).Source
+    if (-not $rgExe) {
+        # 搜索 WinGet 常见安装路径
+        $winGetLinks = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links\rg.exe"
+        if (Test-Path $winGetLinks) { $rgExe = $winGetLinks }
+    }
     if ($rgExe) {
         Write-Ok "ripgrep ✓"
     } else {
