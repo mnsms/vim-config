@@ -159,7 +159,7 @@ cleanup_plugins() {
         if [[ "$should_skip" == "false" ]]; then
             rm -rf "$d"
             info "  移除: $name"
-            ((removed++))
+            removed=$((removed + 1))
         fi
     done
 
