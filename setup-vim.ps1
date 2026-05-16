@@ -442,7 +442,7 @@ function Test-Installation {
     }
 
     # 自定义插件
-    foreach ($name @("fzf", "fzf.vim", "vim-which-key")) {
+    foreach ($name in @("fzf", "fzf.vim", "vim-which-key")) {
         $p = Invoke-GitBash "echo ~/.vim_runtime/my_plugins/$name"
         $pWin = (Invoke-GitBash "cygpath -w '$($p.Trim())'").Trim().Trim('"')
         if (Test-Path $pWin) {
