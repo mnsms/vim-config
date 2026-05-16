@@ -173,35 +173,42 @@ function Install-SystemDeps {
 # ════════════════════════════════════════════════════════════
 #  Phase 2: amix/vimrc 基础框架
 # ════════════════════════════════════════════════════════════
+function Get-VimRuntimeDir {
+    # Windows 原生路径 (PowerShell 可直接使用)
+    return Join-Path $env:USERPROFILE ".vim_runtime"
+}
+
+function Get-GitBashHome {
+    # 转换 Windows 路径为 Git Bash 可识别的 Unix 路径
+    param([string]$WinPath)
+    return (Invoke-GitBash "cygpath -u '$($WinPath -replace '\\','/')'").Trim().Trim('"')
+}
+
 function Install-VimrcBase {
-    $vimRuntime = Invoke-GitBash 'echo ~/.vim_runtime'
-    $vimRuntime = $vimRuntime.Trim()
+    $vimRuntime = Get-VimRuntimeDir
 
     if (Test-Path $vimRuntime) {
         Write-Warn "$vimRuntime 已存在，跳过基础框架安装"
         return
     }
 
+    # 用 PowerShell 的 git 直接克隆 (不需要 Git Bash)
     $proxyUrl = "$GitHubProxy/$VimRuntimeUrl"
     Write-Info "克隆 amix/vimrc (镜像: $proxyUrl)..."
-    $cloneResult = Invoke-GitBash "git clone --depth 1 $proxyUrl ~/.vim_runtime 2>&1"
-    if ($cloneResult -match 'fatal|error') {
+    & git clone --depth 1 $proxyUrl $vimRuntime 2>&1 | ForEach-Object { Write-Host $_ }
+    if (-not (Test-Path $vimRuntime)) {
         Write-Warn "镜像克隆失败，尝试直连..."
-        $cloneResult = Invoke-GitBash "git clone --depth 1 $VimRuntimeUrl ~/.vim_runtime 2>&1"
-        if ($cloneResult -match 'fatal|error') {
-            Write-Err "克隆失败: $cloneResult"
-            exit 1
-        }
+        & git clone --depth 1 $VimRuntimeUrl $vimRuntime 2>&1 | ForEach-Object { Write-Host $_ }
     }
-
     if (-not (Test-Path $vimRuntime)) {
         Write-Err "克隆失败"
         exit 1
     }
 
     Write-Info "执行安装脚本 (生成 .vimrc)..."
-    # 在 Git Bash 中执行，不带 --all (Windows 没有 /home)
-    Invoke-GitBash "cd ~/.vim_runtime && bash install_awesome_parameterized.sh ~/.vim_runtime" | ForEach-Object {
+    # 用 Git Bash 执行 bash 脚本
+    $bashHome = Get-GitBashHome $vimRuntime
+    Invoke-GitBash "cd '$bashHome' && bash install_awesome_parameterized.sh '$bashHome'" | ForEach-Object {
         Write-Host $_
     }
 
@@ -212,8 +219,7 @@ function Install-VimrcBase {
 #  Phase 3: 清理无用插件
 # ════════════════════════════════════════════════════════════
 function Cleanup-Plugins {
-    $dir = Invoke-GitBash 'echo ~/.vim_runtime/sources_non_forked'
-    $dir = $dir.Trim()
+    $dir = Join-Path (Get-VimRuntimeDir) "sources_non_forked"
     if (-not (Test-Path $dir)) { return }
 
     Write-Info "清理不需要的插件..."
@@ -255,18 +261,19 @@ function Install-CustomPlugins {
         @{ name = "vim-which-key"; url = "https://github.com/liuchengxu/vim-which-key.git" }
     )
 
+    $myPluginsDir = Join-Path (Get-VimRuntimeDir) "my_plugins"
+
     foreach ($p in $plugins) {
-        $target = Invoke-GitBash "echo ~/.vim_runtime/my_plugins/$($p.name)"
-        $target = $target.Trim()
+        $target = Join-Path $myPluginsDir $p.name
         if (Test-Path $target) {
             Write-Info "$($p.name) 已存在，跳过"
         } else {
             Write-Info "安装 $($p.name)..."
             $pProxyUrl = "$GitHubProxy/$($p.url)"
-            $cloneOk = Invoke-GitBash "git clone --depth 1 $pProxyUrl ~/.vim_runtime/my_plugins/$($p.name) 2>&1"
-            if ($cloneOk -match 'fatal|error') {
+            & git clone --depth 1 $pProxyUrl $target 2>&1 | Out-Null
+            if (-not (Test-Path $target)) {
                 Write-Warn "镜像失败，直连..."
-                Invoke-GitBash "git clone --depth 1 $($p.url) ~/.vim_runtime/my_plugins/$($p.name) 2>&1" | Out-Null
+                & git clone --depth 1 $p.url $target 2>&1 | Out-Null
             }
             if (Test-Path $target) {
                 Write-Ok "$($p.name) ✓"
@@ -283,8 +290,7 @@ function Install-CustomPlugins {
 #  Phase 5: 下载 fzf Windows 二进制
 # ════════════════════════════════════════════════════════════
 function Install-FzfBinary {
-    $fzfDir = Invoke-GitBash 'echo ~/.vim_runtime/my_plugins/fzf/bin'
-    $fzfDir = $fzfDir.Trim()
+    $fzfDir = Join-Path (Get-VimRuntimeDir) "my_plugins\fzf\bin"
     $fzfExe = Join-Path $fzfDir "fzf.exe"
 
     if (Test-Path $fzfExe) {
@@ -332,38 +338,24 @@ function Install-FzfBinary {
 function Deploy-Configs {
     $scriptDir = $PSScriptRoot
     $source = Join-Path $scriptDir "my_configs.vim"
-
-    $vimRuntime = Invoke-GitBash 'echo ~/.vim_runtime'
-    $target = (Join-Path $vimRuntime.Trim() "my_configs.vim").Replace('\', '/')
+    $target = Join-Path (Get-VimRuntimeDir) "my_configs.vim"
 
     Write-Info "部署 my_configs.vim..."
 
     if (Test-Path $source) {
-        # 转换路径为 Unix 格式供 Git Bash 使用
-        $unixSource = $source.Replace('\', '/')
-        if ($unixSource -match '^([A-Za-z]):') {
-            $drive = $Matches[1].ToLower()
-            $unixSource = "/$drive" + $unixSource.Substring(2)
-        }
-        Invoke-GitBash "cp '$unixSource' '$target'"
-        Write-Ok "从 $source 复制 my_configs.vim"
+        Copy-Item $source $target -Force
+        Write-Ok "复制 my_configs.vim -> $target"
     } else {
         Write-Err "找不到 $source"
         exit 1
     }
 
-    # 确保 Windows vim 能找到 .vimrc
-    # Windows vim 查找 ~/_vimrc 或 ~/.vimrc，Git Bash 安装脚本写的是 ~/.vimrc
-    # 在 Git Bash 中 ~ 是正确的，但原生 Windows 终端需要确认
+    # 确认 .vimrc 存在 (install_awesome_parameterized.sh 生成)
     $homeVimrc = Join-Path $env:USERPROFILE ".vimrc"
-    $homeVimrcUnix = Invoke-GitBash 'echo ~/.vimrc'
-    if (-not (Test-Path $homeVimrc)) {
-        $unixTarget = $homeVimrcUnix.Trim()
-        if (Test-Path (Resolve-Path $homeVimrcUnix -ErrorAction SilentlyContinue)) {
-            Write-Ok ".vimrc 已就位"
-        } else {
-            Write-Warn "请确认 $homeVimrcUnix 存在"
-        }
+    if (Test-Path $homeVimrc) {
+        Write-Ok ".vimrc 就位: $homeVimrc"
+    } else {
+        Write-Warn "$homeVimrc 不存在，amix/vimrc 安装脚本可能未执行"
     }
 }
 
@@ -371,22 +363,17 @@ function Deploy-Configs {
 #  Phase 7: 配置 PATH
 # ════════════════════════════════════════════════════════════
 function Setup-Path {
-    $fzfDir = Invoke-GitBash 'echo ~/.vim_runtime/my_plugins/fzf/bin'
-    $fzfDir = $fzfDir.Trim()
-
-    # 转换为 Windows 路径
-    $winFzfDir = Invoke-GitBash "cygpath -w '$fzfDir'"
-    $winFzfDir = $winFzfDir.Trim().Trim('"')
+    $fzfDir = Join-Path (Get-VimRuntimeDir) "my_plugins\fzf\bin"
 
     # 检查是否已在用户 PATH 中
     $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
-    if ($userPath -like "*$winFzfDir*") {
+    if ($userPath -like "*$fzfDir*") {
         Write-Ok "PATH 已配置，跳过"
         return
     }
 
     Write-Info "将 fzf bin 目录加入用户 PATH..."
-    $newPath = "$userPath;$winFzfDir"
+    $newPath = "$userPath;$fzfDir"
     [System.Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
     $env:Path = $newPath
 
@@ -399,6 +386,7 @@ function Setup-Path {
 function Test-Installation {
     Write-Info "验证安装..."
     $errors = 0
+    $vimRuntime = Get-VimRuntimeDir
 
     # vim
     $vimExe = Get-Command vim -ErrorAction SilentlyContinue
@@ -419,10 +407,8 @@ function Test-Installation {
     }
 
     # fzf
-    $fzfDir = Invoke-GitBash 'echo ~/.vim_runtime/my_plugins/fzf/bin'
-    $fzfDir = $fzfDir.Trim()
-    $winFzfDir = (Invoke-GitBash "cygpath -w '$fzfDir'").Trim().Trim('"')
-    if (Test-Path (Join-Path $winFzfDir "fzf.exe")) {
+    $fzfExe = Join-Path $vimRuntime "my_plugins\fzf\bin\fzf.exe"
+    if (Test-Path $fzfExe) {
         Write-Ok "fzf.exe ✓"
     } else {
         Write-Err "fzf.exe 未找到"
@@ -430,10 +416,9 @@ function Test-Installation {
     }
 
     # .vimrc
-    $vimrc = Invoke-GitBash 'echo ~/.vimrc'
-    $vimrcWin = (Invoke-GitBash "cygpath -w '$($vimrc.Trim())'").Trim().Trim('"')
-    if (Test-Path $vimrcWin) {
-        $content = Get-Content $vimrcWin -Raw -ErrorAction SilentlyContinue
+    $vimrc = Join-Path $env:USERPROFILE ".vimrc"
+    if (Test-Path $vimrc) {
+        $content = Get-Content $vimrc -Raw -ErrorAction SilentlyContinue
         if ($content -match 'vim_runtime') {
             Write-Ok ".vimrc ✓"
         } else {
@@ -446,9 +431,8 @@ function Test-Installation {
     }
 
     # my_configs.vim
-    $myConfigs = Invoke-GitBash 'echo ~/.vim_runtime/my_configs.vim'
-    $myConfigsWin = (Invoke-GitBash "cygpath -w '$($myConfigs.Trim())'").Trim().Trim('"')
-    if (Test-Path $myConfigsWin) {
+    $myConfigs = Join-Path $vimRuntime "my_configs.vim"
+    if (Test-Path $myConfigs) {
         Write-Ok "my_configs.vim ✓"
     } else {
         Write-Err "my_configs.vim 未找到"
@@ -457,9 +441,8 @@ function Test-Installation {
 
     # 自定义插件
     foreach ($name in @("fzf", "fzf.vim", "vim-which-key")) {
-        $p = Invoke-GitBash "echo ~/.vim_runtime/my_plugins/$name"
-        $pWin = (Invoke-GitBash "cygpath -w '$($p.Trim())'").Trim().Trim('"')
-        if (Test-Path $pWin) {
+        $p = Join-Path $vimRuntime "my_plugins\$name"
+        if (Test-Path $p) {
             Write-Ok "插件 $name ✓"
         } else {
             Write-Err "插件 $name 未找到"
