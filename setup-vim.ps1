@@ -214,9 +214,10 @@ function Install-VimrcBase {
     }
 
     Write-Info "执行安装脚本 (生成 .vimrc)..."
-    # 用 Git Bash 执行 bash 脚本 (--all 参数会写入 ~/.vimrc 并克隆全部基础插件)
+    # amix/vimrc 的 --all 遍历 /home/ 所有用户（Linux），Windows 上 /home 为空所以不生效
+    # 改为直接用 $(whoami) 作为用户名参数，安装脚本会写入 ~$user/.vimrc
     $bashHome = Get-GitBashHome $vimRuntime
-    Invoke-GitBash "cd '$bashHome' && bash install_awesome_parameterized.sh '$bashHome' --all" | ForEach-Object {
+    Invoke-GitBash "cd '$bashHome' && bash install_awesome_parameterized.sh '$bashHome' `$(whoami)" | ForEach-Object {
         Write-Host $_
     }
 
