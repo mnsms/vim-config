@@ -6,12 +6,14 @@
 
 ```
 vim-config/
-├── setup-vim.sh        # 一键安装脚本
+├── setup-vim.sh        # Linux/macOS 一键安装 (bash)
+├── setup-vim.ps1       # Windows 一键安装 (PowerShell)
+├── setup-vim.bat       # Windows 双击运行包装器
 ├── my_configs.vim      # 个人配置 (被脚本部署到 ~/.vim_runtime/)
 └── README.md
 ```
 
-## 快速部署
+## Linux / macOS
 
 ```bash
 cd vim-config
@@ -19,6 +21,28 @@ bash setup-vim.sh              # 全新安装 (系统依赖 + 框架 + 插件 + 
 bash setup-vim.sh --skip-base  # 已有框架时 (只装插件+配置)
 bash setup-vim.sh --deploy-only # 仅部署配置 (不装系统包)
 ```
+
+## Windows
+
+**前置条件**: [Git for Windows](https://git-scm.com/download/win) (含 Git Bash)
+
+```powershell
+cd vim-config
+
+# 方式 1: 双击 setup-vim.bat (会自动打开 PowerShell)
+
+# 方式 2: PowerShell 手动运行
+.\setup-vim.ps1                  # 全新安装 (winget 装 vim + ripgrep)
+.\setup-vim.ps1 -SkipBase        # 已有框架时
+.\setup-vim.ps1 -DeployOnly      # 仅部署配置
+
+# 方式 3: 自定义镜像
+$env:GITHUB_PROXY = "https://ghfast.top"
+.\setup-vim.ps1
+```
+
+> 如果 PowerShell 提示执行策略错误，先运行：
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 
 ## 包含功能
 

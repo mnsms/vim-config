@@ -3,3 +3,7 @@
 *.swo
 *~
 .*.un~
+
+# Windows
+Thumbs.db
+Desktop.ini
