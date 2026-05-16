@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Windows 一键部署 amix/vimrc + 个人配置
 
