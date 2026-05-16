@@ -71,6 +71,13 @@ set signcolumn=yes
 " => lightline: Statusbar + Tabline
 " ===================================================================
 
+" ── 启用真彩色支持 (lightline deus 主题需要 24-bit 颜色) ──
+if has('termguicolors')
+    set termguicolors
+elseif &t_Co < 256
+    set t_Co=256
+endif
+
 " ── 禁用简陋的 set_tabline，由 lightline 接管 ──
 let g:set_tabline_loaded = 1  " 阻止 set_tabline 加载
 
