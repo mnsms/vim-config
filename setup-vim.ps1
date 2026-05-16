@@ -193,13 +193,17 @@ function Install-VimrcBase {
     }
 
     # 用 PowerShell 的 git 直接克隆 (不需要 Git Bash)
+    # git 把进度信息输出到 stderr，PowerShell 会将其视为 NativeCommandError
+    # 用 ErrorActionPreference='SilentlyContinue' + 重定向 stderr 到 stdout 解决
     $proxyUrl = "$GitHubProxy/$VimRuntimeUrl"
     Write-Info "克隆 amix/vimrc (镜像: $proxyUrl)..."
-    & git clone --depth 1 $proxyUrl $vimRuntime 2>&1 | ForEach-Object { Write-Host $_ }
+    $prevEA = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+    & git clone --depth 1 $proxyUrl $vimRuntime 2>&1 | Out-Null
     if (-not (Test-Path $vimRuntime)) {
         Write-Warn "镜像克隆失败，尝试直连..."
-        & git clone --depth 1 $VimRuntimeUrl $vimRuntime 2>&1 | ForEach-Object { Write-Host $_ }
+        & git clone --depth 1 $VimRuntimeUrl $vimRuntime 2>&1 | Out-Null
     }
+    $ErrorActionPreference = $prevEA
     if (-not (Test-Path $vimRuntime)) {
         Write-Err "克隆失败"
         exit 1
@@ -263,6 +267,8 @@ function Install-CustomPlugins {
 
     $myPluginsDir = Join-Path (Get-VimRuntimeDir) "my_plugins"
 
+    $prevEA = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+
     foreach ($p in $plugins) {
         $target = Join-Path $myPluginsDir $p.name
         if (Test-Path $target) {
@@ -283,6 +289,7 @@ function Install-CustomPlugins {
         }
     }
 
+    $ErrorActionPreference = $prevEA
     Write-Ok "自定义插件安装完成"
 }
 
